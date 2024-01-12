@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { db } from '@/app/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import { Spinner } from '@/components/spinner';
-import { cn } from '@/lib/utils';
+import useSWR from 'swr';
+import { useState } from 'react';
 
 interface data {
   id: number | string;
@@ -15,36 +15,26 @@ interface data {
 
 const itemsPerPage = 10;
 
-async function fetchDataFromFirestore(page: number, pageSize: number) {
+const fetcher = async () => {
   const querySnapshot = await getDocs(collection(db, 'users'));
-
   const data: data[] = [];
-
   querySnapshot.forEach((doc) => {
     data.push({ id: doc.id, ...doc.data() } as data);
   });
-
-  const startIndex = (page - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  return data.slice(startIndex, endIndex);
-}
+  return data;
+};
 
 function DataReg() {
-  const [userData, setUserData] = useState<data[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: userData, error } = useSWR('users', fetcher);
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const data = await fetchDataFromFirestore(currentPage, itemsPerPage);
-        setUserData(data);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [currentPage]);
+  if (error) return <div>Error loading data</div>;
+  if (!userData)
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Spinner size="icon" />
+      </div>
+    );
 
   const totalPages = Math.ceil(userData.length / itemsPerPage);
 
@@ -58,33 +48,27 @@ function DataReg() {
 
   return (
     <>
-      {!loading && userData && (
-        <div className="container mx-auto p-4">
-          <table className="min-w-full bg-white border rounded-lg border-gray-300">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="py-2 px-4 border-b">Name</th>
-                <th className="py-2 px-4 border-b">Date</th>
-                <th className="py-2 px-4 border-b">School</th>
+      <div className="container mx-auto p-4">
+        <table className="min-w-full bg-white border rounded-lg border-gray-300">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="py-2 px-4 border-b">Name</th>
+              <th className="py-2 px-4 border-b">Date</th>
+              <th className="py-2 px-4 border-b">School</th>
+            </tr>
+          </thead>
+          <tbody>
+            {currentData.map((user) => (
+              <tr key={user.id} className="hover:bg-gray-50">
+                <td className="py-2 px-4 border-b">{user.name}</td>
+                <td className="py-2 px-4 border-b">{user.date}</td>
+                <td className="py-2 px-4 border-b">{user.school}</td>
               </tr>
-            </thead>
-            <tbody>
-              {currentData.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="py-2 px-4 border-b">{user.name}</td>
-                  <td className="py-2 px-4 border-b">{user.date}</td>
-                  <td className="py-2 px-4 border-b">{user.school}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {loading && (
-        <div className="h-full flex items-center justify-center">
-          <Spinner size="icon" />
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div className="mt-4">
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
       </div>
